@@ -1,37 +1,57 @@
 from experta import *
+import os
+from common import Severity
 
-diseases_list = list()
-diseases_symptoms = list()
-symptom_map = dict() # key: list of symptoms; value: Disease Name
+class Symptom(Fact):
+    name = Field(str, mandatory=True)
+    disease = Field(list)
+    selected = Field(bool, mandatory=True)
+    selected_severity = Field(int)
 
+class Disease(Fact):
+    name = Field(str, mandatory=True)
+    symptom = Field(list)
+    severity = Field(list)
 
 def DataBase_Read():
-    global diseases_list, diseases_symptoms, symptom_map
-    diseases_t = open("diseases.txt")
-    diseases_list = diseases_t.read().split("\n")
-    diseases_t.close()
+    with open("diseases.txt") as diseases_t:
+        diseases_list = [a.strip()  for a in diseases_t.read().split("\n") if a != '']
+    disease_symptom_dict = {}
+    print(diseases_list)
     for disease in diseases_list:
-        disease_temp_file = open("Disease symptoms/" + disease + ".txt")
-        disease_temp_data = disease_temp_file.read()
-        s_list = disease_temp_data.split("\n")
-        diseases_symptoms.append(s_list)
-        symptom_map[str(s_list)] = disease
-        disease_temp_file.close()
+        with open(os.path.join(os.getcwd(), "Disease symptoms", "{}.txt".format(disease))) as disease_temp_file:
+            disease_temp_data = disease_temp_file.read()
+            disease_symptom_dict[disease] = {}
+            temp_symp = []
+            temp_sev = []
+            for idx, data in enumerate(disease_temp_data.split("\n")):
+                if idx % 2 == 0:
+                    temp_symp.append(data)
+                else:
+                    temp_sev.append(tuple([Severity(int(x.strip())) for x in data.split(",")]))
+            disease_symptom_dict[disease]['symp'] = temp_symp
+            disease_symptom_dict[disease]['sev'] = temp_sev
+    symptom_disease_dict = {}
+    symptom_list = []
+    for disease in diseases_list:
+        for symptom in disease_symptom_dict[disease]['symp']:
+            if symptom not in symptom_disease_dict:
+                symptom_disease_dict[symptom] = []
+            symptom_disease_dict[symptom].append(disease)
+            if symptom not in symptom_list:
+                symptom_list.append(symptom)
+    return (disease_symptom_dict, symptom_disease_dict, diseases_list, symptom_list)
 
 
 def get_details(disease):
-    global diseases_list, diseases_symptoms, symptom_map
-    _file_ = open("Disease descriptions/" + disease + ".txt")
-    discription = _file_.read()
-    _file_.close()
+    with open(os.path.join(os.getcwd(), "Disease descriptions", "{}.txt".format(disease))) as fd:
+        discription = fd.read()
     return discription
 
 
 def get_treatments(disease):
-    global diseases_list, diseases_symptoms, symptom_map
-    _file_ = open("Disease treatments/" + disease + ".txt")
-    treatment = _file_.read()
-    _file_.close()
+    with open(os.path.join(os.getcwd(), "Disease treatments", "{}.txt".format(disease))) as fd:
+        treatment = fd.read()
     return treatment
 
 
@@ -51,7 +71,7 @@ class Greetings(KnowledgeEngine):
     def _initial_action(self):
         self.patients = input("Patient's Name: ").strip().upper()
         print("Hello! I am Diagnosis Expert System, Made by Dravyansh, Harsh, Janhvi, Mahen.\n" +
-                "I am here to help you diagnose your disease.\n" + 
+                "I am here to help you diagnose your disease.\n" +
                 "For that you'll have to answer a few questions about your conditions.\n" +
                 "Do you feel any of the following symptoms:")
         yield Fact(action="find_disease")
@@ -250,8 +270,11 @@ class Greetings(KnowledgeEngine):
                 max_disease = val
         if_not_matched(max_disease, self.patients)
 
-DataBase_Read()
-engine = Greetings()
-engine.reset()  # Preparing the engine for the execution.
-engine.run()  # Runing
-
+d_s_dict, s_d_dict, d_list, s_list = DataBase_Read()
+print(d_s_dict)
+print(s_d_dict)
+print(d_list)
+print(s_list)
+#engine = Greetings()
+#engine.reset()  # Preparing the engine for the execution.
+#engine.run()  # Runing

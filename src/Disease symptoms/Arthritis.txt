@@ -1,13 +1,10 @@
-no
-yes
-no
-no
-no
-no
-yes
-no
-no
-no
-no
-no
-no
+joint_pain
+1, 5
+joint_stiffness
+1, 5
+joint_swelling
+1, 5
+joint_redness
+1, 5
+joint_restricted
+1, 5

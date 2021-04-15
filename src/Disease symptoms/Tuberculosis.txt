@@ -1,13 +1,14 @@
-no
-no
-yes
-yes
-no
-no
-no
-no
-no
-yes
-no
-no
-no
+cough
+3, 5
+chest_pain
+3, 5
+weight_loss
+1, 5
+fatigue
+3, 5
+fever
+3, 5
+night_sweat
+3, 5
+chills
+3, 5

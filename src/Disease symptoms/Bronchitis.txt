@@ -1,0 +1,14 @@
+cough
+3, 5
+pain
+2, 5
+coloured_mucus
+1, 5
+fatigue
+3, 5
+fever
+2, 4
+chills
+2, 4
+chest_pain
+1, 2
