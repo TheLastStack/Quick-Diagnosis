@@ -14,6 +14,20 @@ class Disease(Fact):
 class Task(Fact):
     pass
 
+class Error(Fact):
+    pass
+
+class Count(Fact):
+    name = Field(str, mandatory=True)
+    required = Field(int, mandatory=True)
+    obtained = Field(int, mandatory=True)
+    symptom = Field(list, mandatory=True)
+
+class Transaction(Fact):
+    symptom = Field(str)
+    severity = Field(Severity)
+    disease = Field(str)
+
 class Query(Fact):
     symptom = Field(str, mandatory=True)
     severity = Field(Severity, mandatory=True)
@@ -85,7 +99,8 @@ class Diagnose(KnowledgeEngine):
         self.patients = input("Patient's Name: ").strip().upper()
         print("Hello! I am a Custom Diagnosis Expert System, Made by Dravyansh, Harsh, Janhvi, Mahen.\n"
                 "I am here to help you diagnose your disease.\n"
-                "Please start typing in your symptoms and its severity. ")
+                "Please start typing in your symptoms and its severity."
+                "Press enter on a blank line to get diagnosis")
         self.declare(Task('type-symptom'))
 
     @Rule(AS.f1 << Task('type-symptom'))
@@ -93,15 +108,17 @@ class Diagnose(KnowledgeEngine):
         ans = ' '
         sev = ' '
         while ans != '' and sev != '':
-            ans = input('Symptom>').strip()
+            ans = input('Symptom>').strip().lower()
             autofill = list(filter(lambda x: x.startswith(ans), self.symp_list))
             if len(autofill) == 1 or ans.replace(" ", "_").strip() in self.symp_list:
-                ans = autofill[0]
+                if not ans.replace(" ", "_").strip() in self.symp_list:
+                    ans = autofill[0]
+                    print(ans)
                 sev = input('Severity (0-5)>')
                 try:
                     sev = Severity(int(sev))
                 except ValueError:
-                    print("Please enter a number")
+                    print("Please enter a number between 0 - 5")
                     sev = ' '
                     continue
                 self.declare(Query(symptom=ans, severity=sev))
@@ -121,7 +138,35 @@ class Diagnose(KnowledgeEngine):
                 sev = ' '
         self.retract(f1)
 
-    @Rule(AS.f1 << Query(symptom=MATCH.symp, severity=MATCH.sev))
+    @Rule(AS.f1 << Query(symptom=MATCH.symp, severity=MATCH.sev), Symptom(name=MATCH.symp, disease=MATCH.dis))
+    def process_input_query(self, f1, symp, sev, dis):
+        for disease in dis:
+            self.declare(Transaction(symptom=symp, severity=sev, disease=disease))
+        self.retract(f1)
+
+    @Rule(Transaction(symptom=MATCH.symp, severity=MATCH.sev, disease=MATCH.dis),
+          Disease(name=MATCH.dis, symptom=MATCH.sy, severity=MATCH.se))
+    def create_count(self, dis, sy):
+        self.declare(Count(name=dis, required=len(sy), obtained=0, symptom=[]))
+
+    @Rule(AS.f1 << Transaction(symptom=MATCH.symp, severity=MATCH.sev, disease=MATCH.dis),
+          Disease(name=MATCH.dis, symptom=MATCH.syflist, severity=MATCH.sevflist),
+          AS.f2 << Count(name=MATCH.dis, required=MATCH.req, obtained=MATCH.obt, symptom=MATCH.clist))
+    def count_activations(self, f1, f2, symp, sev, syflist, sevflist, req, obt, clist):
+        try:
+            idx = syflist.index(symp)
+            sev0, sev1 = sevflist[idx]
+            if sev.value <= sev1.value and sev.value >= sev0.value:
+                in_list = list(clist)
+                in_list.append(tuple([symp, sev]))
+                self.modify(f2, obtained=obt+1, symptom=in_list)
+        except ValueError:
+            self.declare(Error("Something went wrong."))
+        self.retract(f1)
+
+    @Rule(NOT(Transaction()), AS.f1 << Count())
+    def print_diagnosis(self, f1):
+        pass
 
     '''
     @Rule(Fact(action='find_disease'), Fact(disease=MATCH.disease), salience=-998)
