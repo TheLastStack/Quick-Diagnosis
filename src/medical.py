@@ -17,11 +17,27 @@ class Task(Fact):
 class Error(Fact):
     pass
 
+class Result(Fact):
+    name = Field(str, mandatory=True)
+
+class DiseaseWatch(Fact):
+    diseases = Field(list, mandatory=True)
+    completed = Field(bool, mandatory=True)
+
+class DiseaseStub(Fact):
+    name = Field(str)
+
 class Count(Fact):
     name = Field(str, mandatory=True)
     required = Field(int, mandatory=True)
     obtained = Field(int, mandatory=True)
     symptom = Field(list, mandatory=True)
+
+class MaxCount(Count):
+    pass
+
+class Ratio(Fact):
+    ratio=Field(float, mandatory=True)
 
 class Transaction(Fact):
     symptom = Field(str)
@@ -84,6 +100,15 @@ def if_not_matched(disease, patient):
     print("The common medications and procedures suggested by other real doctors are:\n")
     print(treatments)
 
+def disease(disease, patients):
+    id_disease = disease
+    disease_details = get_details(id_disease)
+    treatments = get_treatments(id_disease)
+    print("\n\n {}, The most probable disease that you have is {}".format(patients, disease))
+    print("\nA short description of the disease is given below :\n")
+    print(disease_details)
+    print("\nThe common medications and procedures suggested by other real doctors are:\n")
+    print(treatments)
 
 class Diagnose(KnowledgeEngine):
     @DefFacts()
@@ -93,11 +118,14 @@ class Diagnose(KnowledgeEngine):
         for disease in dis_symp_dict:
             yield Disease(name=disease, symptom=dis_symp_dict[disease]['symp'], severity=dis_symp_dict[disease]['sev'])
         self.symp_list = symp_list
+        self.diagnosis = []
+        self.incomplete = False
+        self.all_matches = []
 
     @Rule(salience=1000)
     def startup(self):
         self.patients = input("Patient's Name: ").strip().upper()
-        print("Hello! I am a Custom Diagnosis Expert System, Made by Dravyansh, Harsh, Janhvi, Mahen.\n"
+        print("Hello! I am a Custom Diagnosis Expert System (CUSTODES)\n"
                 "I am here to help you diagnose your disease.\n"
                 "Please start typing in your symptoms and its severity."
                 "Press enter on a blank line to get diagnosis")
@@ -121,8 +149,9 @@ class Diagnose(KnowledgeEngine):
                     print("Please enter a number between 0 - 5")
                     sev = ' '
                     continue
+                #TODO: Ensure query is unique
                 self.declare(Query(symptom=ans, severity=sev))
-                print(self.facts)
+                #print(self.facts)
             elif len(autofill) == 0:
                 suggestions = list(filter(lambda x: ans.replace(" ", "_") in x, self.symp_list))
                 if len(suggestions) == 0:
@@ -148,6 +177,7 @@ class Diagnose(KnowledgeEngine):
           Disease(name=MATCH.dis, symptom=MATCH.sy, severity=MATCH.se))
     def create_count(self, dis, sy):
         self.declare(Count(name=dis, required=len(sy), obtained=0, symptom=[]))
+        self.declare(DiseaseStub(name=dis))
 
     @Rule(AS.f1 << Transaction(symptom=MATCH.symp, severity=MATCH.sev, disease=MATCH.dis),
           Disease(name=MATCH.dis, symptom=MATCH.syflist, severity=MATCH.sevflist),
@@ -164,10 +194,105 @@ class Diagnose(KnowledgeEngine):
             self.declare(Error("Something went wrong."))
         self.retract(f1)
 
-    @Rule(NOT(Transaction()), AS.f1 << Count())
-    def print_diagnosis(self, f1):
-        pass
+    @Rule(NOT(Transaction()), NOT(DiseaseWatch()),
+          EXISTS(Count()))
+    def add_disease_watcher(self):
+        self.declare(DiseaseWatch(diseases=[], completed=False))
 
+    @Rule(AS.f1 << DiseaseWatch(diseases=MATCH.dis_list, completed=MATCH.com),
+          AS.f2 << DiseaseStub(name=MATCH.dis))
+    def add_diseases_to_watcher(self, f1, f2, dis, dis_list):
+        in_list = list(dis_list)
+        print(in_list)
+        if dis not in in_list:
+            in_list.append(dis)
+        self.modify(f1, diseases=in_list)
+        self.retract(f2)
+
+    @Rule(AS.f1 << DiseaseWatch(diseases=MATCH.dis_list, completed=MATCH.com),
+          TEST(lambda com: not com),
+          NOT(DiseaseStub()))
+    def mark_disease_completion(self, f1):
+        self.modify(f1, completed=True)
+
+    @Rule(AS.f1 << DiseaseWatch(diseases=MATCH.dis_list, completed=MATCH.com),
+          TEST(lambda dis_list: len(dis_list) > 0),
+          TEST(lambda com: com),
+          AS.f2 << Count(name=MATCH.dis, required=MATCH.req, obtained=MATCH.obt, symptom=MATCH.clist))
+    def obtain_exact_diagnosis(self, f1, f2, dis, req, obt, dis_list):
+        if req == obt:
+            self.retract(f2)
+            self.all_matches.append(dis)
+            self.declare(Result(name=dis))
+        if dis in dis_list:
+            in_list = list(dis_list)
+            try:
+                in_list.remove(dis)
+            except ValueError:
+                in_list = []
+                self.declare(Error("Something went wrong while obtaining exact diagnosis"))
+            self.modify(f1, diseases=in_list)
+
+    @Rule(AS.f1 << DiseaseWatch(diseases=MATCH.dis_list, completed=MATCH.com),
+          TEST(lambda dis_list: len(dis_list) == 0),
+          TEST(lambda com: com),
+          NOT(Task()),
+          Result())
+    def signal_exact_completion():
+        self.declare(Task('store-result'))
+        self.retract(f1)
+
+    @Rule(AS.f1 << DiseaseWatch(diseases=MATCH.dis_list, completed=MATCH.com),
+          TEST(lambda dis_list: len(dis_list) == 0),
+          TEST(lambda com: com),
+          NOT(Task()),
+          NOT(Result()))
+    def incomplete_information(self, f1):
+        self.incomplete = True
+        self.retract(f1)
+        self.declare(Task('best-match'))
+        self.declare(Ratio(ratio=0.0))
+
+    @Rule(Task('best-match'),
+          AS.f1 << Count(name=MATCH.dis, required=MATCH.req, obtained=MATCH.obt, symptom=MATCH.clist),
+          AS.f2 << Ratio(ratio=MATCH.ratio),
+          TEST(lambda req, obt, ratio: obt/req > ratio))
+    def compute_max(self, f1, f2, req, obt):
+        self.modify(f2, ratio=obt/req)
+
+    @Rule(Task('best-match'),
+          AS.f1 << Count(name=MATCH.dis, required=MATCH.req, obtained=MATCH.obt, symptom=MATCH.clist),
+          AS.f2 << Ratio(ratio=MATCH.ratio),
+          TEST(lambda req, obt, ratio: obt/req < ratio))
+    def remove_mins(self, f1, f2, dis, req, obt):
+        self.retract(f1)
+        self.all_matches.append(tuple((dis, obt, req)))
+
+    @Rule(Task('best-match'),
+        AS.f1 << Count(name=MATCH.dis, required=MATCH.req, obtained=MATCH.obt, symptom=MATCH.clist),
+        AS.f2 << Ratio(ratio=MATCH.ratio),
+        TEST(lambda req, obt, ratio: obt/req == ratio))
+    def keep_max(self, f1, f2, dis, req, obt, clist):
+        self.retract(f1)
+        self.all_matches.append(tuple((dis, obt, req)))
+        self.declare(MaxCount(name=dis, required=req, obtained=obt, symptom=clist))
+
+    @Rule(AS.f2 << Task('best-match'), NOT(Count()), AS.f1 << Ratio(ratio=MATCH.ratio))
+    def cleanup_max_operation(self, f1, f2):
+        self.retract(f1)
+        self.retract(f2)
+        self.declare(Task('store-result'))
+
+    @Rule(AS.f1 << MaxCount(name=MATCH.dis, required=MATCH.req, obtained=MATCH.obt, symptom=MATCH.clist))
+    def max_to_result(self, f1, dis):
+        self.retract(f1)
+        self.declare(Result(name=dis))
+
+    @Rule(Task('store-result'),
+          AS.f3 << Result(name=MATCH.dis))
+    def store_result(self, f3, dis):
+        self.diagnosis.append(dis)
+        self.retract(f3)
     '''
     @Rule(Fact(action='find_disease'), Fact(disease=MATCH.disease), salience=-998)
     def disease(self, disease):
@@ -215,12 +340,20 @@ class Diagnose(KnowledgeEngine):
     '''
 if __name__ == "__main__":
     dis_symp_dict, symp_dis_dict, dis_list, symp_list = DataBase_Read()
+    '''
+    Print debugging!
     print(dis_symp_dict)
     print(symp_dis_dict)
     print(dis_list)
     print(symp_list)
+    '''
     engine = Diagnose()
     engine.reset(dis_symp_dict=dis_symp_dict, symp_dis_dict=symp_dis_dict, symp_list=symp_list)  # Preparing the engine for the execution.
+    '''
     print(engine.facts)
-    engine.run()  # Runing
+    '''
+    engine.run()
     print(engine.facts)
+    print(engine.all_matches)
+    print(engine.diagnosis)
+    print(engine.incomplete)
