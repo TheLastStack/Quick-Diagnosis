@@ -52,7 +52,7 @@ def DataBase_Read():
     with open("diseases.txt") as diseases_t:
         diseases_list = [a.strip()  for a in diseases_t.read().split("\n") if a != '']
     disease_symptom_dict = {}
-    print(diseases_list)
+    #print(diseases_list)
     for disease in diseases_list:
         with open(os.path.join(os.getcwd(), "Disease symptoms", "{}.txt".format(disease))) as disease_temp_file:
             disease_temp_data = disease_temp_file.read()
@@ -100,7 +100,7 @@ def if_not_matched(disease, patient):
     print("The common medications and procedures suggested by other real doctors are:\n")
     print(treatments)
 
-def disease(disease, patients):
+def print_definite_disease(disease, patients):
     id_disease = disease
     disease_details = get_details(id_disease)
     treatments = get_treatments(id_disease)
@@ -158,7 +158,7 @@ class Diagnose(KnowledgeEngine):
                     print("Could not find any matching symptoms.\n")
                 else:
                     print("Did you mean:")
-                    print(suggestions)
+                    print([x.replace("_", " ") for x in suggestions])
                 ans = ' '
             elif ans != '':
                 print("Did you mean:")
@@ -203,7 +203,6 @@ class Diagnose(KnowledgeEngine):
           AS.f2 << DiseaseStub(name=MATCH.dis))
     def add_diseases_to_watcher(self, f1, f2, dis, dis_list):
         in_list = list(dis_list)
-        print(in_list)
         if dis not in in_list:
             in_list.append(dis)
         self.modify(f1, diseases=in_list)
