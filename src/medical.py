@@ -49,7 +49,7 @@ class Query(Fact):
     severity = Field(Severity, mandatory=True)
 
 def DataBase_Read():
-    with open("diseases.txt") as diseases_t:
+    with open(os.path.join(os.getcwd(), "diseases.txt")) as diseases_t:
         diseases_list = [a.strip()  for a in diseases_t.read().split("\n") if a != '']
     disease_symptom_dict = {}
     #print(diseases_list)
