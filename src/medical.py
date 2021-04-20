@@ -1,6 +1,5 @@
 from experta import *
 import os
-import datetime
 from common import Severity
 
 class Symptom(Fact):
@@ -48,7 +47,6 @@ class Transaction(Fact):
 class Query(Fact):
     symptom = Field(str, mandatory=True)
     severity = Field(Severity, mandatory=True)
-    timestamp = Fied(datetime.datetime, mandatory=True)
 
 def DataBase_Read():
     with open("diseases.txt") as diseases_t:
@@ -96,7 +94,7 @@ def print_likely_disease(disease):
     id_disease = disease
     disease_details = get_details(id_disease)
     treatments = get_treatments(id_disease)
-    print("A likely disease that you have is: {}".format(id_disease))
+    print("\n\nA likely disease that you have is: {}".format(id_disease))
     print("A short description of the disease is given below :\n")
     print(disease_details)
     print("The common medications and procedures suggested by other real doctors are:\n")
@@ -106,7 +104,7 @@ def print_definite_disease(disease):
     id_disease = disease
     disease_details = get_details(id_disease)
     treatments = get_treatments(id_disease)
-    print("The most probable disease that you have is {}".format(disease))
+    print("\n\nThe most probable disease that you have is {}".format(disease))
     print("\nA short description of the disease is given below :\n")
     print(disease_details)
     print("\nThe common medications and procedures suggested by other real doctors are:\n")
@@ -137,13 +135,14 @@ class Diagnose(KnowledgeEngine):
     def type_symptom(self, f1):
         ans = ' '
         sev = ' '
+        to_check_duplicates = {}
         while ans != '' and sev != '':
             ans = input('Symptom>').strip().lower()
             autofill = list(filter(lambda x: x.startswith(ans), self.symp_list))
             if len(autofill) == 1 or ans.replace(" ", "_").strip() in self.symp_list:
                 if not ans.replace(" ", "_").strip() in self.symp_list:
                     ans = autofill[0]
-                    print(ans)
+                    print(ans.replace("_", " "))
                 sev = input('Severity (0-5)>')
                 try:
                     sev = Severity(int(sev))
@@ -151,9 +150,7 @@ class Diagnose(KnowledgeEngine):
                     print("Please enter a number between 0 - 5")
                     sev = ' '
                     continue
-                #TODO: Ensure query is unique
-                self.declare(Query(symptom=ans, severity=sev))
-                #print(self.facts)
+                to_check_duplicates[ans] = sev
             elif len(autofill) == 0:
                 suggestions = list(filter(lambda x: ans.replace(" ", "_") in x, self.symp_list))
                 if len(suggestions) == 0:
@@ -167,10 +164,12 @@ class Diagnose(KnowledgeEngine):
                 print(autofill)
                 ans = ' '
                 sev = ' '
+        for symp in to_check_duplicates:
+            self.declare(Query(symptom=symp, severity=to_check_duplicates[symp]))
         self.retract(f1)
-    @Rule(Task('type-symptom'), )
+        print(self.facts)
 
-    @Rule(NOT(Task('type-symptom')),
+    @Rule(NOT(Task()),
           AS.f1 << Query(symptom=MATCH.symp, severity=MATCH.sev),
           Symptom(name=MATCH.symp, disease=MATCH.dis))
     def process_input_query(self, f1, symp, sev, dis):
@@ -319,7 +318,7 @@ if __name__ == "__main__":
     print(engine.diagnosis)
     print(engine.incomplete)
     '''
-    print("Hey {},\n".format(engine.patients))
+    print("Hey {},".format(engine.patients))
     if not engine.incomplete:
         for dis in engine.diagnosis:
             print_definite_disease(dis)
