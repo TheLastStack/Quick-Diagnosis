@@ -1,5 +1,6 @@
 from experta import *
 import os
+import datetime
 from common import Severity
 
 class Symptom(Fact):
@@ -47,6 +48,7 @@ class Transaction(Fact):
 class Query(Fact):
     symptom = Field(str, mandatory=True)
     severity = Field(Severity, mandatory=True)
+    timestamp = Fied(datetime.datetime, mandatory=True)
 
 def DataBase_Read():
     with open("diseases.txt") as diseases_t:
@@ -90,21 +92,21 @@ def get_treatments(disease):
     return treatment
 
 
-def if_not_matched(disease, patient):
+def print_likely_disease(disease):
     id_disease = disease
     disease_details = get_details(id_disease)
     treatments = get_treatments(id_disease)
-    print("\n\n"+ patient +", The most probable disease that you have is: \t\t %s" % id_disease)
+    print("A likely disease that you have is: {}".format(id_disease))
     print("A short description of the disease is given below :\n")
     print(disease_details)
     print("The common medications and procedures suggested by other real doctors are:\n")
     print(treatments)
 
-def print_definite_disease(disease, patients):
+def print_definite_disease(disease):
     id_disease = disease
     disease_details = get_details(id_disease)
     treatments = get_treatments(id_disease)
-    print("\n\n {}, The most probable disease that you have is {}".format(patients, disease))
+    print("The most probable disease that you have is {}".format(disease))
     print("\nA short description of the disease is given below :\n")
     print(disease_details)
     print("\nThe common medications and procedures suggested by other real doctors are:\n")
@@ -166,8 +168,11 @@ class Diagnose(KnowledgeEngine):
                 ans = ' '
                 sev = ' '
         self.retract(f1)
+    @Rule(Task('type-symptom'), )
 
-    @Rule(AS.f1 << Query(symptom=MATCH.symp, severity=MATCH.sev), Symptom(name=MATCH.symp, disease=MATCH.dis))
+    @Rule(NOT(Task('type-symptom')),
+          AS.f1 << Query(symptom=MATCH.symp, severity=MATCH.sev),
+          Symptom(name=MATCH.symp, disease=MATCH.dis))
     def process_input_query(self, f1, symp, sev, dis):
         for disease in dis:
             self.declare(Transaction(symptom=symp, severity=sev, disease=disease))
@@ -292,51 +297,7 @@ class Diagnose(KnowledgeEngine):
     def store_result(self, f3, dis):
         self.diagnosis.append(dis)
         self.retract(f3)
-    '''
-    @Rule(Fact(action='find_disease'), Fact(disease=MATCH.disease), salience=-998)
-    def disease(self, disease):
-        id_disease = disease
-        disease_details = get_details(id_disease)
-        treatments = get_treatments(id_disease)
-        print("\n\n" + self.patients + ", The most probable disease that you have is %s" % id_disease)
-        print("\nA short description of the disease is given below :\n")
-        print(disease_details)
-        print("\nThe common medications and procedures suggested by other real doctors are:\n")
-        print(treatments)
 
-    @Rule(Fact(action='find_disease'),
-          Fact(headache=MATCH.headache),
-          Fact(back_pain=MATCH.back_pain),
-          Fact(chest_pain=MATCH.chest_pain),
-          Fact(cough=MATCH.cough),
-          Fact(fainting=MATCH.fainting),
-          Fact(sore_throat=MATCH.sore_throat),
-          Fact(fatigue=MATCH.fatigue),
-          Fact(low_body_temp=MATCH.low_body_temp),
-          Fact(restlessness=MATCH.restlessness),
-          Fact(fever=MATCH.fever),
-          Fact(sunken_eyes=MATCH.sunken_eyes),
-          Fact(nausea=MATCH.nausea),
-          Fact(blurred_vision=MATCH.blurred_vision),
-          NOT(Fact(disease=MATCH.disease)), salience=-999)
-    def not_matched(self, headache, back_pain, chest_pain, cough, fainting, sore_throat, fatigue, restlessness,
-                    low_body_temp, fever, sunken_eyes, nausea, blurred_vision):
-        print("\nDid not find any disease that matches your exact symptoms")
-        lis = [headache, back_pain, chest_pain, cough, fainting, sore_throat, fatigue, restlessness, low_body_temp,
-               fever, sunken_eyes, nausea, blurred_vision]
-        max_count = 0
-        max_disease = ""
-        for key, val in symptom_map.items():
-            count = 0
-            temp_list = eval(key)
-            for j in range(0, len(lis)):
-                if temp_list[j] == lis[j] and lis[j] == "yes":
-                    count = count + 1
-            if count > max_count:
-                max_count = count
-                max_disease = val
-        if_not_matched(max_disease, self.patients)
-    '''
 if __name__ == "__main__":
     dis_symp_dict, symp_dis_dict, dis_list, symp_list = DataBase_Read()
     '''
@@ -352,7 +313,25 @@ if __name__ == "__main__":
     print(engine.facts)
     '''
     engine.run()
+    '''
     print(engine.facts)
     print(engine.all_matches)
     print(engine.diagnosis)
     print(engine.incomplete)
+    '''
+    print("Hey {},\n".format(engine.patients))
+    if not engine.incomplete:
+        for dis in engine.diagnosis:
+            print_definite_disease(dis)
+        likely_disease = engine.all_matches
+        for item in engine.diagnosis:
+            try:
+                likely_disease.remove(item)
+            except ValueError:
+                pass
+        for dis, obt, req in likely_disease:
+            print_likely_disease(dis)
+    else:
+        likely_disease = engine.diagnosis
+        for dis in likely_disease:
+            print_likely_disease(dis)
