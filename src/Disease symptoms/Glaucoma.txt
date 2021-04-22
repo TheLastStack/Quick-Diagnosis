@@ -1,13 +1,12 @@
-yes
-no
-no
-no
-no
-no
-no
-no
-no
-no
-no
-yes
-yes
+Severe_headache
+2,5
+Eye_pain
+2,5
+Nausea or vomiting
+1,5
+Blurred_vision
+3,5
+Halos
+3,5
+Eye_redness
+1,5

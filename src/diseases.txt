@@ -1,4 +1,15 @@
 Alzheimers
 Arthritis
-Tuberculosis
+Asthma
 Bronchitis
+Diabetes
+Epilepsy
+Glaucoma
+Heart Disease
+Heat Stroke
+Hyperthyroidism
+Hypothermia
+Jaundice
+Sinusitis
+Tuberculosis
+None

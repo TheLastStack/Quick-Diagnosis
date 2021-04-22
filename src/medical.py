@@ -60,10 +60,11 @@ def DataBase_Read():
             temp_symp = []
             temp_sev = []
             for idx, data in enumerate(disease_temp_data.split("\n")):
-                if idx % 2 == 0:
-                    temp_symp.append(data)
-                else:
-                    temp_sev.append(tuple([Severity(int(x.strip())) for x in data.split(",")]))
+                if data != "":
+                    if idx % 2 == 0:
+                        temp_symp.append(data)
+                    else:
+                        temp_sev.append(tuple([Severity(int(x.strip())) for x in data.split(",")]))
             disease_symptom_dict[disease]['symp'] = temp_symp
             disease_symptom_dict[disease]['sev'] = temp_sev
     symptom_disease_dict = {}
@@ -94,25 +95,23 @@ def print_likely_disease(disease):
     id_disease = disease
     disease_details = get_details(id_disease)
     treatments = get_treatments(id_disease)
-    print("\n\nA likely disease that you have is: {}".format(id_disease))
-    print("A short description of the disease is given below :\n")
-    print(disease_details)
-    print("The common medications and procedures suggested by other real doctors are:\n")
-    print(treatments)
+    string_out1 = "A likely disease that you have is " + str(disease)
+    yield tuple([string_out1, 'Description', disease_details])
+    string_out1 = "The common medications and procedures suggested by other real doctors are:"
+    yield tuple([string_out1, 'Treatment', treatments])
 
 def print_definite_disease(disease):
     id_disease = disease
     disease_details = get_details(id_disease)
     treatments = get_treatments(id_disease)
-    print("\n\nThe most probable disease that you have is {}".format(disease))
-    print("\nA short description of the disease is given below :\n")
-    print(disease_details)
-    print("\nThe common medications and procedures suggested by other real doctors are:\n")
-    print(treatments)
+    string_out1 = "The most probable disease that you have is " + str(disease)
+    yield tuple([string_out1, 'Description', disease_details])
+    string_out1 = "The common medications and procedures suggested by other real doctors are:"
+    yield tuple([string_out1, 'Treatment', treatments])
 
 class Diagnose(KnowledgeEngine):
     @DefFacts()
-    def _initial_action(self, dis_symp_dict, symp_dis_dict, symp_list):
+    def _initial_action(self, dis_symp_dict, symp_dis_dict, symp_list, present_symps):
         for symptom in symp_dis_dict:
             yield Symptom(name=symptom, disease=symp_dis_dict[symptom])
         for disease in dis_symp_dict:
@@ -121,53 +120,24 @@ class Diagnose(KnowledgeEngine):
         self.diagnosis = []
         self.incomplete = False
         self.all_matches = []
+        self.present_symps = present_symps
 
     @Rule(salience=1000)
     def startup(self):
-        self.patients = input("Patient's Name: ").strip().upper()
+        '''
         print("Hello! I am a Custom Diagnosis Expert System (CUSTODES)\n"
                 "I am here to help you diagnose your disease.\n"
                 "Please start typing in your symptoms and its severity."
                 "Press enter on a blank line to get diagnosis")
+        '''
         self.declare(Task('type-symptom'))
 
     @Rule(AS.f1 << Task('type-symptom'))
     def type_symptom(self, f1):
-        ans = ' '
-        sev = ' '
-        to_check_duplicates = {}
-        while ans != '' and sev != '':
-            ans = input('Symptom>').strip().lower()
-            autofill = list(filter(lambda x: x.startswith(ans), self.symp_list))
-            if len(autofill) == 1 or ans.replace(" ", "_").strip() in self.symp_list:
-                if not ans.replace(" ", "_").strip() in self.symp_list:
-                    ans = autofill[0]
-                    print(ans.replace("_", " "))
-                sev = input('Severity (0-5)>')
-                try:
-                    sev = Severity(int(sev))
-                except ValueError:
-                    print("Please enter a number between 0 - 5")
-                    sev = ' '
-                    continue
-                to_check_duplicates[ans] = sev
-            elif len(autofill) == 0:
-                suggestions = list(filter(lambda x: ans.replace(" ", "_") in x, self.symp_list))
-                if len(suggestions) == 0:
-                    print("Could not find any matching symptoms.\n")
-                else:
-                    print("Did you mean:")
-                    print([x.replace("_", " ") for x in suggestions])
-                ans = ' '
-            elif ans != '':
-                print("Did you mean:")
-                print(autofill)
-                ans = ' '
-                sev = ' '
-        for symp in to_check_duplicates:
-            self.declare(Query(symptom=symp, severity=to_check_duplicates[symp]))
+        for symp in self.present_symps:
+            self.declare(Query(symptom=symp, severity=Severity(self.present_symps[symp])))
         self.retract(f1)
-        print(self.facts)
+        #print(self.facts)
 
     @Rule(NOT(Task()),
           AS.f1 << Query(symptom=MATCH.symp, severity=MATCH.sev),
@@ -241,7 +211,7 @@ class Diagnose(KnowledgeEngine):
           TEST(lambda com: com),
           NOT(Task()),
           Result())
-    def signal_exact_completion():
+    def signal_exact_completion(self, f1):
         self.declare(Task('store-result'))
         self.retract(f1)
 
@@ -297,8 +267,7 @@ class Diagnose(KnowledgeEngine):
         self.diagnosis.append(dis)
         self.retract(f3)
 
-if __name__ == "__main__":
-    dis_symp_dict, symp_dis_dict, dis_list, symp_list = DataBase_Read()
+def check_symptoms(patient, present_symps, dis_symp_dict, symp_dis_dict, dis_list, symp_list):
     '''
     Print debugging!
     print(dis_symp_dict)
@@ -307,7 +276,7 @@ if __name__ == "__main__":
     print(symp_list)
     '''
     engine = Diagnose()
-    engine.reset(dis_symp_dict=dis_symp_dict, symp_dis_dict=symp_dis_dict, symp_list=symp_list)  # Preparing the engine for the execution.
+    engine.reset(dis_symp_dict=dis_symp_dict, symp_dis_dict=symp_dis_dict, symp_list=symp_list, present_symps=present_symps)  # Preparing the engine for the execution.
     '''
     print(engine.facts)
     '''
@@ -318,10 +287,10 @@ if __name__ == "__main__":
     print(engine.diagnosis)
     print(engine.incomplete)
     '''
-    print("Hey {},".format(engine.patients))
     if not engine.incomplete:
         for dis in engine.diagnosis:
-            print_definite_disease(dis)
+            for statement, heading, data in print_definite_disease(dis):
+                yield statement, heading, data
         likely_disease = engine.all_matches
         for item in engine.diagnosis:
             try:
@@ -329,8 +298,58 @@ if __name__ == "__main__":
             except ValueError:
                 pass
         for dis, obt, req in likely_disease:
-            print_likely_disease(dis)
+            for statement, heading, data in print_likely_disease(dis):
+                yield statement, heading, data
     else:
-        likely_disease = engine.diagnosis
-        for dis in likely_disease:
-            print_likely_disease(dis)
+        for dis in engine.diagnosis:
+            for statement, heading, data in print_likely_disease(dis):
+                yield statement, heading, data
+        likely_disease = engine.all_matches
+        for item, obt, req in engine.all_matches:
+            try:
+                if item in engine.diagnosis:
+                    likely_disease.remove(tuple([item, obt, req]))
+            except ValueError:
+                pass
+        for dis, obt, req in likely_disease:
+            for statement, heading, data in print_likely_disease(dis):
+                yield statement, heading, data
+
+if __name__ == "__main__":
+    dis_symp_dict, symp_dis_dict, dis_list, symp_list = DataBase_Read()
+    pat = input("Enter patient's name:")
+    ans = ' '
+    sev = ' '
+    to_check_duplicates = {}
+    while ans != '' and sev != '':
+        ans = input('Symptom>').strip().lower()
+        autofill = list(filter(lambda x: x.startswith(ans), symp_list))
+        if len(autofill) == 1 or ans.replace(" ", "_").strip() in symp_list:
+            if not ans.replace(" ", "_").strip() in symp_list:
+                ans = autofill[0]
+                print(ans.replace("_", " "))
+            sev = input('Severity (0-5)>')
+            try:
+                sev = Severity(int(sev))
+            except ValueError:
+                print("Please enter a number between 0 - 5")
+                sev = ' '
+                continue
+            to_check_duplicates[ans] = sev
+        elif len(autofill) == 0:
+            suggestions = list(filter(lambda x: ans.replace(" ", "_") in x, symp_list))
+            if len(suggestions) == 0:
+                print("Could not find any matching symptoms.\n")
+            else:
+                print("Did you mean:")
+                print([x.replace("_", " ") for x in suggestions])
+            ans = ' '
+        elif ans != '':
+            print("Did you mean:")
+            print(autofill)
+            ans = ' '
+            sev = ' '
+    for statement, heading, data in check_symptoms(pat, to_check_duplicates, dis_symp_dict, symp_dis_dict, dis_list, symp_list):
+        print(statement)
+        print("\n\n" + heading + ":")
+        print(data)
