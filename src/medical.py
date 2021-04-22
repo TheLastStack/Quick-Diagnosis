@@ -281,11 +281,12 @@ def check_symptoms(patient, present_symps, dis_symp_dict, symp_dis_dict, dis_lis
     print(engine.facts)
     '''
     engine.run()
-    '''
+
     print(engine.facts)
     print(engine.all_matches)
     print(engine.diagnosis)
     print(engine.incomplete)
+
     '''
     if not engine.incomplete:
         for dis in engine.diagnosis:
@@ -314,7 +315,7 @@ def check_symptoms(patient, present_symps, dis_symp_dict, symp_dis_dict, dis_lis
         for dis, obt, req in likely_disease:
             for statement, heading, data in print_likely_disease(dis):
                 yield statement, heading, data
-
+    '''
 if __name__ == "__main__":
     dis_symp_dict, symp_dis_dict, dis_list, symp_list = DataBase_Read()
     pat = input("Enter patient's name:")
@@ -349,7 +350,8 @@ if __name__ == "__main__":
             print(autofill)
             ans = ' '
             sev = ' '
-    for statement, heading, data in check_symptoms(pat, to_check_duplicates, dis_symp_dict, symp_dis_dict, dis_list, symp_list):
-        print(statement)
-        print("\n\n" + heading + ":")
-        print(data)
+    #for statement, heading, data in
+    check_symptoms(pat, to_check_duplicates, dis_symp_dict, symp_dis_dict, dis_list, symp_list)#:
+    #    print(statement)
+    #    print("\n\n" + heading + ":")
+    #    print(data)
